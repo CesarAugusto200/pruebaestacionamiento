@@ -1,0 +1,64 @@
+package views
+
+import (
+	"SimuladorEstacionamiento/utils"
+
+	"github.com/faiface/pixel"
+	"github.com/faiface/pixel/pixelgl"
+)
+
+type ViewParking struct {
+	win            *pixelgl.Window
+	utils          *utils.Utils
+	spaces         [20]pixel.Vec
+	questionSpaces [20]pixel.Vec
+}
+
+func NewViewParking(win *pixelgl.Window) *ViewParking {
+	return &ViewParking{
+		win:   win,
+		utils: &utils.Utils{}, 
+		spaces: createParkingCoordinates(835, 300, 10, 80),
+		questionSpaces: createParkingCoordinates(975, 300, 10, 80),
+	}
+}
+
+func createParkingCoordinates(startX, startY float64, count int, stepX float64) [20]pixel.Vec {
+    coordinates := [20]pixel.Vec{}
+    x, y := startX, startY
+
+    for i := 0; i < count; i++ {
+        coordinates[i] = pixel.V(x, y)
+        x += stepX
+    }
+
+    return coordinates
+}
+
+
+func (pw *ViewParking) PaintParking() {
+	picParking, err := pw.utils.LoadPicture("./assets/Group2.png")
+	if err != nil {
+		panic(err)
+	}
+
+	parking := pw.utils.NewSprite(picParking, picParking.Bounds())
+
+	matrix := pixel.IM.Moved(pixel.V(512, 469))
+	parking.Draw(pw.win, matrix)
+}
+
+func (pw *ViewParking) PaintStreet() {
+	picStreet, err := pw.utils.LoadPicture("./assets/Group2.png")
+	if err != nil {
+		panic(err)
+	}
+
+	street := pw.utils.NewSprite(picStreet, picStreet.Bounds())
+
+	street.Draw(pw.win, pixel.IM.Moved(pixel.V(512, 85)))
+}
+
+func (pw *ViewParking) GetCoordinates(n int) pixel.Vec {
+	return pw.spaces[n]
+}

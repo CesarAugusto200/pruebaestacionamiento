@@ -1,0 +1,100 @@
+package main
+
+import (
+	_ "image/png"
+	"SimuladorEstacionamiento/controllers"
+	"SimuladorEstacionamiento/models"
+	"SimuladorEstacionamiento/utils"
+	"sync"
+
+	"github.com/faiface/pixel"
+	"github.com/faiface/pixel/pixelgl"
+	"golang.org/x/image/colornames"
+)
+
+type Simulation struct {
+	win             *pixelgl.Window
+	carChannel      chan models.Car
+	entranceChannel chan int
+	winChannel      chan utils.ImgCar
+	mu              *sync.Mutex
+	parkingCtrl     *controllers.ControllerParking
+	entranceCtrl    *controllers.EntranceController
+	carCtrl         *controllers.ControllerCar
+	carSprites      []utils.ImgCar
+}
+
+func NewSimulation() *Simulation {
+	cfg := pixelgl.WindowConfig{
+		Title:  "Simulator Chiapas Parking",
+		Bounds: pixel.R(0, 0, 1024, 768),
+	}
+
+	win, err := pixelgl.NewWindow(cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	carChannel := make(chan models.Car, 100)
+	entranceChannel := make(chan int)
+	winChannel := make(chan utils.ImgCar)
+	mu := &sync.Mutex{}
+
+	return &Simulation{
+		win:             win,
+		carChannel:      carChannel,
+		entranceChannel: entranceChannel,
+		winChannel:      winChannel,
+		mu:              mu,
+		parkingCtrl:     controllers.NewControllerParking(win, mu),
+		entranceCtrl:    controllers.NewEntranceController(win, mu),
+		carCtrl:         controllers.NewControllerCar(win, mu),
+	}
+}
+
+func (s *Simulation) Run() {
+	s.carCtrl.LoadSprite()
+
+	go s.parkingCtrl.Park(&s.carChannel, s.entranceCtrl, s.carCtrl, &s.entranceChannel, s.winChannel)
+	s.entranceCtrl.LoadStates()
+	go s.carCtrl.GenerateCars(100, &s.carChannel)
+
+	for !s.win.Closed() {
+		s.win.Clear(colornames.Black)
+
+		s.parkingCtrl.PaintParking()
+		s.parkingCtrl.PaintStreet()
+
+		select {
+		case val := <-s.winChannel:
+			if val.IsEntering() {
+				s.carSprites = append(s.carSprites, val)
+			} else {
+				var arrAux []utils.ImgCar
+				for _, value := range s.carSprites {
+					if value.GetID() != val.GetID() {
+						arrAux = append(arrAux, value)
+					}
+				}
+				s.carSprites = s.carSprites[:0]
+				s.carSprites = append(s.carSprites, arrAux...)
+			}
+		}
+
+		for _, value := range s.carSprites {
+			sprite := value.GetSprite()
+			pos := value.GetPosition()
+			sprite.Draw(s.win, pixel.IM.Moved(pos))
+		}
+
+		s.win.Update()
+	}
+}
+
+//error corregido de bloqueo de interfaz mandando a llamar primero la funcion antes del render
+func main() {
+    pixelgl.Run(func() {
+        simulation := NewSimulation()
+        simulation.Run()
+    })
+}
